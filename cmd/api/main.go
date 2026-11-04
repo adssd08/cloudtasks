@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"example.com/cloudtasks/internal/platform"
+	"example.com/cloudtasks/internal/storage"
 )
 
 func main() {
@@ -27,7 +28,25 @@ func run() error {
 	)
 	defer stop()
 
-	app := platform.NewHTTPApp()
+	bucket := os.Getenv("S3_BUCKET")
+	if bucket == "" {
+		return fmt.Errorf("S3_BUCKET must be configured")
+	}
+
+	startupCtx, cancelStartup := context.WithTimeout(
+		signalCtx,
+		10*time.Second,
+	)
+
+	clients, err := platform.NewAWSClients(startupCtx)
+	cancelStartup()
+
+	if err != nil {
+		return err
+	}
+
+	store := storage.NewS3Store(clients.S3, bucket)
+	app := platform.NewHTTPApp(store)
 
 	serverErr := make(chan error, 1)
 
