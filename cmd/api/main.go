@@ -46,7 +46,8 @@ func run() error {
 	}
 
 	store := storage.NewS3Store(clients.S3, bucket)
-	app := platform.NewHTTPApp(store)
+	presigner := storage.NewS3Presigner(clients.S3, bucket)
+	app := platform.NewHTTPApp(store, presigner)
 
 	serverErr := make(chan error, 1)
 

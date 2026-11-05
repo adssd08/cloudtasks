@@ -12,11 +12,12 @@ import (
 )
 
 type AttachmentHandler struct {
-	store storage.ObjectStore
+	store     storage.ObjectStore
+	presigner storage.ObjectPresigner
 }
 
-func NewAttachmentHandler(store storage.ObjectStore) *AttachmentHandler {
-	return &AttachmentHandler{store: store}
+func NewAttachmentHandler(store storage.ObjectStore, presigner storage.ObjectPresigner) *AttachmentHandler {
+	return &AttachmentHandler{store: store, presigner: presigner}
 }
 
 func (h *AttachmentHandler) Upload(c fiber.Ctx) error {
