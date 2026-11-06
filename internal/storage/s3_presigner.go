@@ -25,8 +25,9 @@ func (s *S3Presigner) PresignUpload(ctx context.Context, key string, ttl time.Du
 	request, err := s.client.PresignPutObject(
 		ctx,
 		&s3.PutObjectInput{
-			Bucket: aws.String(s.bucket),
-			Key:    aws.String(key),
+			Bucket:      aws.String(s.bucket),
+			Key:         aws.String(key),
+			IfNoneMatch: aws.String("*"),
 		},
 		func(options *s3.PresignOptions) {
 			options.Expires = ttl

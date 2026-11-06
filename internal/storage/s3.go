@@ -2,11 +2,13 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 )
 
 // holds reusale client and one configured bucket.
@@ -45,6 +47,11 @@ func (s *S3Store) Get(ctx context.Context, key string) (io.ReadCloser, error) {
 		Key:    aws.String(key),
 	})
 	if err != nil {
+		var apiErr smithy.APIError
+
+		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "NoSuchKey" {
+			return nil, fmt.Errorf("get object %q: %w", key, ErrObjectNotFound)
+		}
 		return nil, fmt.Errorf("get object %q: %w", key, err)
 	}
 

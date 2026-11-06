@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"io"
 )
 
@@ -17,3 +18,5 @@ type ObjectStore interface {
 
 	Delete(ctx context.Context, key string) error
 }
+
+var ErrObjectNotFound = errors.New("object not found")

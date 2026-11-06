@@ -9,7 +9,9 @@ import (
 	"syscall"
 	"time"
 
+	"example.com/cloudtasks/internal/identity"
 	"example.com/cloudtasks/internal/platform"
+	"example.com/cloudtasks/internal/services"
 	"example.com/cloudtasks/internal/storage"
 )
 
@@ -33,21 +35,47 @@ func run() error {
 		return fmt.Errorf("S3_BUCKET must be configured")
 	}
 
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		return fmt.Errorf("DATABASE_URL must be configured")
+	}
+
+	auth, err := identity.NewDevelopmentAuth(
+		os.Getenv("APP_ENV"),
+		os.Getenv("DEV_ALICE_TOKEN"),
+		os.Getenv("DEV_BOB_TOKEN"),
+	)
+	if err != nil {
+		return err
+	}
+
 	startupCtx, cancelStartup := context.WithTimeout(
 		signalCtx,
 		10*time.Second,
 	)
 
 	clients, err := platform.NewAWSClients(startupCtx)
+
+	if err != nil {
+		cancelStartup()
+		return err
+	}
+
+	db, err := platform.NewPostgres(startupCtx, databaseURL)
 	cancelStartup()
 
 	if err != nil {
 		return err
 	}
+	defer db.Close()
 
 	store := storage.NewS3Store(clients.S3, bucket)
 	presigner := storage.NewS3Presigner(clients.S3, bucket)
-	app := platform.NewHTTPApp(store, presigner)
+	repository := storage.NewAttachmentRepository(db)
+
+	attachmentService := services.NewAttachmentService(repository, store, presigner)
+
+	app := platform.NewHTTPApp(attachmentService, auth)
 
 	serverErr := make(chan error, 1)
 

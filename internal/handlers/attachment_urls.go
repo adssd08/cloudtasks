@@ -2,9 +2,10 @@ package handlers
 
 import (
 	"context"
-	"log"
 	"time"
 
+	"example.com/cloudtasks/internal/identity"
+	"example.com/cloudtasks/internal/services"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 )
@@ -12,57 +13,54 @@ import (
 const attachmentURLTTL = 5 * time.Minute
 
 func (h *AttachmentHandler) PresignUpload(c fiber.Ctx) error {
-	id := uuid.NewString()
-	key := "attachments/" + id
+	ownerID, ok := identity.OwnerID(c)
+	if !ok {
+		return fiber.ErrUnauthorized
+	}
 
 	ctx, cancel := context.WithTimeout(c.Context(), 5*time.Second)
 	defer cancel()
 
-	request, err := h.presigner.PresignUpload(ctx, key, attachmentURLTTL)
-	if err != nil {
-		log.Printf("presign attachment upload: %v", err)
+	grant, err := h.service.CreateUpload(ctx, ownerID)
 
-		return fiber.NewError(
-			fiber.StatusInternalServerError,
-			"could not generate upload URL",
-		)
+	if err != nil {
+		return attachmentHTTPError(err)
 	}
 
-	c.Set("Cache-Control", "no-store")
-
 	return c.JSON(fiber.Map{
-		"id":                 id,
-		"key":                key,
-		"expires_in_seconds": int(attachmentURLTTL.Seconds()),
-		"request":            request,
+		"id":                 grant.ID,
+		"key":                grant.Key,
+		"status":             "PENDING",
+		"expires_in_seconds": grant.ExpiresInSeconds,
+		"request":            grant.Request,
 	})
 }
 
 func (h *AttachmentHandler) PresignDownload(c fiber.Ctx) error {
+	ownerID, ok := identity.OwnerID(c)
+
+	if !ok {
+		return fiber.ErrUnauthorized
+	}
+
 	id, err := uuid.Parse(c.Params("id"))
 
 	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "attachment ID must be UUID")
+		return fiber.NewError(fiber.StatusBadRequest, "attachment ID must be a UUID")
 	}
-
-	key := "attachments/" + id.String()
 
 	ctx, cancel := context.WithTimeout(c.Context(), 5*time.Second)
 	defer cancel()
 
-	request, err := h.presigner.PresignDownload(ctx, key, attachmentURLTTL)
+	request, err := h.service.DownloadURL(ctx, id.String(), ownerID)
+
 	if err != nil {
-		log.Printf("presign attachment download: %v", err)
-
-		return fiber.NewError(fiber.StatusInternalServerError, "could not generate download URL")
+		return attachmentHTTPError(err)
 	}
-
-	c.Set("Cache-Control", "no-store")
 
 	return c.JSON(fiber.Map{
 		"id":                 id.String(),
-		"key":                key,
-		"expires_in_seconds": int(attachmentURLTTL.Seconds()),
+		"expires_in_seconds": int(services.AttachmentURLTTL.Seconds()),
 		"request":            request,
 	})
 }
