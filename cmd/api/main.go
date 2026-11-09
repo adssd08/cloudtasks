@@ -71,11 +71,13 @@ func run() error {
 
 	store := storage.NewS3Store(clients.S3, bucket)
 	presigner := storage.NewS3Presigner(clients.S3, bucket)
-	repository := storage.NewAttachmentRepository(db)
+	attachmentRepository := storage.NewAttachmentRepository(db)
+	taskRepository := storage.NewTaskRepository(db)
 
-	attachmentService := services.NewAttachmentService(repository, store, presigner)
+	attachmentService := services.NewAttachmentService(attachmentRepository, store, presigner)
+	taskService := services.NewTaskService(taskRepository)
 
-	app := platform.NewHTTPApp(attachmentService, auth)
+	app := platform.NewHTTPApp(attachmentService, taskService, auth)
 
 	serverErr := make(chan error, 1)
 

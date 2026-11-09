@@ -8,12 +8,13 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/logger"
 )
 
-func NewHTTPApp(service *services.AttachmentService, auth fiber.Handler) *fiber.App {
+func NewHTTPApp(attachmentService *services.AttachmentService, taskService *services.TaskService, auth fiber.Handler) *fiber.App {
 	app := fiber.New(fiber.Config{
 		BodyLimit: 8 * 1024 * 1024,
 	})
 
-	attachments := handlers.NewAttachmentHandler(service)
+	attachments := handlers.NewAttachmentHandler(attachmentService)
+	tasks := handlers.NewTaskHandler(taskService)
 
 	app.Use(logger.New())
 	app.Get("/health", handlers.Health)
@@ -29,6 +30,20 @@ func NewHTTPApp(service *services.AttachmentService, auth fiber.Handler) *fiber.
 	protected.Post("/presign-upload", attachments.PresignUpload)
 	protected.Post("/:id/confirm", attachments.Confirm)
 	protected.Get("/:id/presign-download", attachments.PresignDownload)
+
+	taskRoutes := app.Group(
+		"/tasks", func(c fiber.Ctx) error {
+			c.Set("Cache-Control", "no-store")
+			return c.Next()
+		},
+		handlers.TaskErrorResponse,
+		auth,
+	)
+
+	taskRoutes.Post("/", tasks.Create)
+	taskRoutes.Get("/", tasks.List)
+	taskRoutes.Get("/:id", tasks.Get)
+	taskRoutes.Patch("/:id", tasks.Patch)
 
 	return app
 

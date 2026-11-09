@@ -158,9 +158,12 @@ func newTestEnvironment(t *testing.T) *testEnvironment {
 		t.Fatal(err)
 	}
 
-	repository := storage.NewAttachmentRepository(db)
-	service := services.NewAttachmentService(repository, env.store, env.presigner)
-	env.app = platform.NewHTTPApp(service, auth)
+	attachmentRepository := storage.NewAttachmentRepository(db)
+	attachmentService := services.NewAttachmentService(attachmentRepository, env.store, env.presigner)
+
+	taskRepository := storage.NewTaskRepository(db)
+	taskService := services.NewTaskService(taskRepository)
+	env.app = platform.NewHTTPApp(attachmentService, taskService, auth)
 
 	return env
 }
